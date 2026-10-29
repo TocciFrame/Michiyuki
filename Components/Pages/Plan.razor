@@ -1,0 +1,240 @@
+@page "/plan"
+@rendermode InteractiveServer
+@implements IDisposable
+@inject TripPlanner Planner
+
+<PageTitle>@(booking is null ? "Plan your trip" : "Your ticket") - Michiyuki</PageTitle>
+
+<div class="mx-auto max-w-6xl px-5 pt-8 md:px-8 lg:pt-12">
+@if (booking is not null)
+{
+    <header class="max-w-2xl">
+        <h1 class="text-[clamp(2.2rem,6vw,4rem)]">You are on the line, @FirstName.</h1>
+        <p class="mt-4 text-lg text-muted">Seats are reserved on every stop. A confirmation is on its way to @booking.Email.</p>
+    </header>
+
+    <section class="ticket mt-10" aria-label="Boarding ticket @booking.Reference" aria-live="polite">
+        <div class="p-6 md:p-8">
+            <p class="font-display text-lg font-extrabold">Michiyuki <span lang="ja" class="text-muted">道行</span></p>
+            <ul class="mt-5 border-t-2 border-ink">
+                @foreach (var l in booking.Lines)
+                {
+                    <li class="grid grid-cols-[auto_1fr_auto] items-center gap-x-4 gap-y-1 border-b border-line py-3">
+                        <span class="sign" data-region="@l.Region"><span class="sign-code">@l.Code</span></span>
+                        <span>
+                            <span class="block font-bold">@l.Name</span>
+                            <span class="block text-sm text-muted">@l.Place, @l.Days @(l.Days == 1 ? "day" : "days")</span>
+                        </span>
+                        <span class="font-bold tabular-nums">@l.Cost.Yen()</span>
+                    </li>
+                }
+            </ul>
+            <dl class="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+                <div><dt class="text-sm text-muted">Lead traveler</dt><dd class="font-bold">@booking.LeaderName</dd></div>
+                <div><dt class="text-sm text-muted">Party</dt><dd class="font-bold">@booking.Travelers @(booking.Travelers == 1 ? "traveler" : "travelers")</dd></div>
+                <div><dt class="text-sm text-muted">Departs</dt><dd class="font-bold">@booking.Departure.Day()</dd></div>
+                <div><dt class="text-sm text-muted">Back by</dt><dd class="font-bold">@booking.Return.Day()</dd></div>
+            </dl>
+            <p class="mt-4 text-sm text-muted">Pace: @booking.Pace.Label().Split(":")[0].ToLowerInvariant()</p>
+        </div>
+        <div class="ticket-stub flex flex-col justify-between gap-6 p-6">
+            <div>
+                <p class="text-sm font-bold">Reference</p>
+                <p class="break-all font-display text-2xl font-extrabold tabular-nums">@booking.Reference</p>
+            </div>
+            <div>
+                <p class="text-sm font-bold">Total for @booking.Travelers</p>
+                <p class="font-display text-3xl font-extrabold">@booking.Total.Yen()</p>
+                <p class="text-sm">@booking.TotalDays days on the line</p>
+            </div>
+        </div>
+    </section>
+
+    <div class="mt-8 flex flex-wrap gap-3">
+        <button type="button" class="btn-signal" @onclick="PlanAnother">Plan another trip</button>
+        <a href="/seasons" class="btn-outline">Check the seasons</a>
+    </div>
+}
+else
+{
+    <header class="max-w-2xl">
+        <h1 class="text-[clamp(2.2rem,6vw,4rem)]">Confirm your route</h1>
+        <p class="mt-4 text-lg text-muted">Tell us who is travelling and when. Seats are reserved on every stop at once, or on none.</p>
+    </header>
+
+    <div class="mt-10 grid gap-10 lg:grid-cols-[1fr_22rem]">
+        <EditForm Model="form" OnValidSubmit="Submit" OnInvalidSubmit="InvalidSubmit" novalidate>
+            <DataAnnotationsValidator />
+            <div class="grid gap-6 sm:grid-cols-2">
+                <div>
+                    <label for="f-name" class="field-label">Lead traveler</label>
+                    <InputText id="f-name" class="field" @bind-Value="form.FullName" autocomplete="name" aria-describedby="e-name" placeholder="Name as on the passport" />
+                    <div id="e-name"><ValidationMessage For="() => form.FullName" /></div>
+                </div>
+                <div>
+                    <label for="f-email" class="field-label">Email</label>
+                    <InputText id="f-email" type="email" class="field" @bind-Value="form.Email" autocomplete="email" aria-describedby="e-email" placeholder="you@example.com" />
+                    <div id="e-email"><ValidationMessage For="() => form.Email" /></div>
+                </div>
+                <div>
+                    <label for="f-party" class="field-label">Travelers</label>
+                    <InputNumber id="f-party" class="field" @bind-Value="form.Travelers" @bind-Value:event="oninput" aria-describedby="e-party h-party" />
+                    <p id="h-party" class="hint mt-1">Between 1 and @TripPlanner.MaxTravelers. Prices update as you type.</p>
+                    <div id="e-party"><ValidationMessage For="() => form.Travelers" /></div>
+                </div>
+                <div>
+                    <label for="f-date" class="field-label">Departure date</label>
+                    <InputDate id="f-date" TValue="DateTime?" class="field" @bind-Value="form.Departure" min="@minDate" aria-describedby="e-date h-date" />
+                    <p id="h-date" class="hint mt-1">At least 14 days from today.</p>
+                    <div id="e-date"><ValidationMessage For="() => form.Departure" /></div>
+                </div>
+            </div>
+
+            <fieldset class="mt-6">
+                <legend class="field-label">Pace</legend>
+                <InputRadioGroup Name="pace" @bind-Value="form.Pace">
+                    <div class="grid gap-2 sm:grid-cols-3">
+                        @foreach (var p in Enum.GetValues<Pace>())
+                        {
+                            var parts = p.Label().Split(": ", 2);
+                            <label class="choice">
+                                <InputRadio Value="p" />
+                                <span><span class="block font-bold">@parts[0]</span><span class="block text-sm">@parts[1]</span></span>
+                            </label>
+                        }
+                    </div>
+                </InputRadioGroup>
+            </fieldset>
+
+            <div class="mt-6">
+                <label for="f-notes" class="field-label">Anything we should know? <span class="font-normal text-muted">(optional)</span></label>
+                <InputTextArea id="f-notes" rows="4" class="field" @bind-Value="form.Notes" aria-describedby="e-notes" placeholder="Dietary needs, mobility, a birthday on the trip" />
+                <div id="e-notes"><ValidationMessage For="() => form.Notes" /></div>
+            </div>
+
+            <div class="mt-6">
+                <label class="choice">
+                    <InputCheckbox @bind-Value="form.AcceptTerms" aria-describedby="e-terms" />
+                    <span class="text-sm">I understand seats can be cancelled free up to 14 days before departure.</span>
+                </label>
+                <div id="e-terms"><ValidationMessage For="() => form.AcceptTerms" /></div>
+            </div>
+
+            @if (routeError is not null)
+            {
+                <p class="field-error mt-6 border-2 border-danger bg-surface p-3" role="alert">@routeError</p>
+            }
+
+            <button type="submit" class="btn-signal mt-6 w-full sm:w-auto" disabled="@submitting" aria-busy="@(submitting ? "true" : "false")">
+                @if (submitting)
+                {
+                    <span class="spinner" aria-hidden="true"></span><span>Reserving seats...</span>
+                }
+                else
+                {
+                    <span>Confirm and get ticket</span>
+                }
+            </button>
+        </EditForm>
+
+        <aside aria-label="Route summary">
+            <div class="board on-ink sticky top-20 p-5">
+                <h2 class="text-2xl">Your route</h2>
+                @if (Planner.Route.Count == 0)
+                {
+                    <div class="mt-4 border-t border-ink-2 pt-4">
+                        <p class="text-board-muted">Nothing on your route yet. Pick a few stops from the board and they will show up here with a live total.</p>
+                        <a href="/explore" class="btn-signal mt-4">Browse the line</a>
+                    </div>
+                }
+                else
+                {
+                    <ul class="mt-4 border-t border-ink-2">
+                        @foreach (var e in Planner.Route)
+                        {
+                            <li class="border-b border-ink-2 py-3">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <span class="sign" data-region="@e.Region"><span class="sign-code">@e.Destination.Code</span></span>
+                                        <p class="mt-1 font-bold">@e.Name</p>
+                                        <p class="text-sm text-board-muted">@e.Days @(e.Days == 1 ? "day" : "days"), @e.CalculateCost(party).Yen()</p>
+                                        @if (e.SeatsLeft < party)
+                                        {
+                                            <p class="mt-1 text-sm font-bold text-accent">Only @e.SeatsLeft @(e.SeatsLeft == 1 ? "seat" : "seats") left for a party of @party.</p>
+                                        }
+                                    </div>
+                                    <button type="button" class="min-h-11 min-w-11 text-sm font-bold underline underline-offset-4 hover:text-accent" aria-label="Remove @e.Name" @onclick="() => Planner.Remove(e)">Remove</button>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                    <dl class="mt-4 grid grid-cols-2 gap-y-1">
+                        <dt class="text-board-muted">Days on the line</dt><dd class="text-right font-bold">@Planner.RouteDays</dd>
+                        <dt class="text-board-muted">Total for @party</dt><dd class="text-right font-display text-2xl font-extrabold">@Planner.TotalFor(party).Yen()</dd>
+                    </dl>
+                }
+            </div>
+        </aside>
+    </div>
+}
+</div>
+
+@code {
+    private InquiryForm form = new();
+    private Booking? booking;
+    private bool submitting;
+    private string? routeError;
+    private string minDate = DateTime.Today.AddDays(14).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    private int party => Math.Clamp(form.Travelers, 1, TripPlanner.MaxTravelers);
+    private string FirstName => booking is null ? "" : booking.LeaderName.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
+
+    protected override void OnInitialized()
+    {
+        form.Travelers = Planner.Travelers;
+        Planner.Changed += OnChanged;
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    // Returns true when the route is ready to book.
+    private bool CheckRoute()
+    {
+        routeError = null;
+        if (Planner.Route.Count == 0)
+        {
+            routeError = "Add at least one experience to your route before confirming.";
+            return false;
+        }
+        var short_ = Planner.Unavailable(party).Select(e => e.Name).ToList();
+        if (short_.Count > 0)
+        {
+            routeError = $"Not enough seats for {party} on: {string.Join(", ", short_)}. Lower the party size or remove the stop.";
+            return false;
+        }
+        return true;
+    }
+
+    private void InvalidSubmit() => CheckRoute();
+
+    private async Task Submit()
+    {
+        if (!CheckRoute()) return;
+        submitting = true;
+        StateHasChanged();
+        await Task.Delay(1200); // stands in for a real booking call
+
+        booking = Planner.Confirm(form.FullName.Trim(), form.Email.Trim(), party, form.Departure!.Value, form.Pace);
+        if (booking is null) routeError = "Seats changed while we were booking. Review your route and try again.";
+        submitting = false;
+    }
+
+    private void PlanAnother()
+    {
+        booking = null;
+        form = new InquiryForm { Travelers = Planner.Travelers };
+        routeError = null;
+    }
+
+    public void Dispose() => Planner.Changed -= OnChanged;
+}

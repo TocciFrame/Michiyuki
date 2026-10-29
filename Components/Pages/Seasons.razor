@@ -1,0 +1,104 @@
+@page "/seasons"
+@rendermode InteractiveServer
+
+<PageTitle>Seasons timetable - Michiyuki</PageTitle>
+
+<div class="mx-auto max-w-6xl px-5 pt-8 md:px-8 lg:pt-12">
+    <header class="max-w-2xl">
+        <p class="eyebrow">FIELD NOTES / WHEN TO GO</p>
+        <h1 class="mt-3 text-[clamp(2.2rem,6vw,4rem)]">The seasons timetable</h1>
+        <p class="mt-4 text-lg text-muted">
+            Read it like a rail timetable: each row is a station, each filled block is a stretch when something worth the trip is happening.
+            Pick a month to see what it is.
+        </p>
+    </header>
+
+    <section class="mt-10" aria-labelledby="month-h">
+        <h2 id="month-h" class="sr-only">Choose a month</h2>
+        <div class="flex flex-wrap gap-2" role="group" aria-label="Month">
+            @for (var m = 1; m <= 12; m++)
+            {
+                var month = m;
+                <button type="button" class="chip justify-center !px-4 before:hidden" aria-pressed="@(selectedMonth == month ? "true" : "false")"
+                        @onclick="() => selectedMonth = month">@SeasonalHighlight.MonthNames[m - 1]</button>
+            }
+        </div>
+        <label class="mt-4 inline-flex min-h-11 cursor-pointer items-center gap-3 font-bold">
+            <input type="checkbox" class="h-5 w-5 accent-ink" @bind="onlyInSeason" />
+            Hide stations with nothing on in @MonthFull
+        </label>
+    </section>
+
+    <section class="mt-6 overflow-x-auto border-2 border-ink bg-surface" aria-label="Seasons matrix" tabindex="0">
+        <div class="matrix">
+            <span class="matrix-head grid place-items-center !cursor-default hover:!bg-transparent" aria-hidden="true">Station</span>
+            @for (var m = 1; m <= 12; m++)
+            {
+                var month = m;
+                <span class="matrix-head grid place-items-center !cursor-default hover:!bg-transparent @(selectedMonth == month ? "!bg-accent" : "")" aria-hidden="true">@SeasonalHighlight.MonthNames[m - 1]</span>
+            }
+
+            @foreach (var d in rows)
+            {
+                <div class="matrix-cell !justify-items-start gap-0 px-3 py-1" data-region="@d.Region">
+                    <span class="sign self-center"><span class="sign-code">@d.Code</span><span class="sign-name">@d.Name</span></span>
+                    <span class="sr-only">In season: @string.Join(", ", d.Highlights.Select(h => $"{h.Title}, {h.RangeLabel}"))</span>
+                </div>
+                @for (var m = 1; m <= 12; m++)
+                {
+                    <span class="matrix-cell @(d.IsInSeason(m) ? "on" : "") @(m == selectedMonth ? "sel" : "")" data-region="@d.Region" aria-hidden="true"></span>
+                }
+            }
+        </div>
+    </section>
+
+    <section class="mt-14" aria-labelledby="now-h" aria-live="polite">
+        <h2 id="now-h" class="text-3xl md:text-4xl">On the line in @MonthFull</h2>
+
+        @if (inMonth.Count == 0)
+        {
+            <div class="mt-6 border-2 border-dashed border-ink p-8">
+                <p class="font-display text-xl font-extrabold">A quiet month.</p>
+                <p class="mt-2 max-w-lg text-muted">
+                    None of our stations has a headline event in @MonthFull. It is usually a warm, humid month and
+                    typhoons can disrupt rail, so indoor workshops make the safest stops.
+                </p>
+                <a href="/explore" class="btn mt-5">Browse workshops and stays</a>
+            </div>
+        }
+        else
+        {
+            <ul class="mt-6 border-t-2 border-ink">
+                @foreach (var d in inMonth)
+                {
+                    <li class="grid gap-4 border-b-2 border-ink py-6 md:grid-cols-[14rem_1fr]">
+                        <div>
+                            <img class="season-destination-photo" src="@d.PhotoUrl" alt="@d.PhotoAlt" loading="lazy" referrerpolicy="no-referrer" />
+                            <span class="sign sign-lg mt-3" data-region="@d.Region"><span class="sign-code">@d.Code</span><span class="sign-name">@d.Name</span></span>
+                            <p lang="ja" class="mt-2 font-display text-xl font-extrabold">@d.JpName</p>
+                        </div>
+                        <div class="grid gap-4">
+                            @foreach (var h in d.HighlightsIn(selectedMonth))
+                            {
+                                <div>
+                                    <h3 class="text-xl">@h.Title <span class="ml-2 text-base font-normal text-muted">@h.RangeLabel</span></h3>
+                                    <p class="mt-1 max-w-prose leading-relaxed text-muted">@h.Note</p>
+                                </div>
+                            }
+                            <p><a class="btn-line -ml-4" href="/explore?station=@d.Id">See experiences in @d.Name</a></p>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+</div>
+
+@code {
+    private int selectedMonth = DateTime.Now.Month;
+    private bool onlyInSeason;
+
+    private string MonthFull => CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(selectedMonth);
+    private List<Destination> inMonth => SampleData.Destinations.Where(d => d.IsInSeason(selectedMonth)).ToList();
+    private IEnumerable<Destination> rows => onlyInSeason ? inMonth : SampleData.Destinations;
+}

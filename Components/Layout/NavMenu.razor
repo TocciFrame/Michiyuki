@@ -1,0 +1,48 @@
+@rendermode InteractiveServer
+@implements IDisposable
+@inject TripPlanner Planner
+
+<header class="site-header sticky top-0 z-40 border-b-2 border-ink bg-paper">
+    <nav class="site-nav mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 sm:px-5 md:px-8" aria-label="Main">
+        <NavLink href="/" class="brand-mark" aria-label="Michiyuki home">
+            <span class="brand-symbol" lang="ja" aria-hidden="true">道</span>
+            <span class="brand-copy">
+                <span class="brand-wordmark">michiyuki<span class="brand-dot">.</span></span>
+                <span class="brand-tagline">JAPAN, AT YOUR PACE</span>
+            </span>
+        </NavLink>
+
+        <button class="btn-outline mobile-menu-toggle md:hidden" @onclick="() => open = !open"
+                aria-expanded="@(open ? "true" : "false")" aria-controls="nav-links">
+            @(open ? "Close" : "Menu")
+        </button>
+
+        <ul id="nav-links"
+            class="@(open ? "flex" : "hidden") absolute left-0 right-0 top-full flex-col gap-1 border-b-2 border-ink bg-paper px-5 py-3
+                   md:static md:flex md:flex-row md:items-center md:gap-6 md:border-0 md:bg-transparent md:p-0">
+            <li><NavLink href="/" Match="NavLinkMatch.All" class="nav-link" ActiveClass="nav-active" @onclick="Close">Home</NavLink></li>
+            <li><NavLink href="/explore" class="nav-link" ActiveClass="nav-active" @onclick="Close">Explore</NavLink></li>
+            <li><NavLink href="/seasons" class="nav-link" ActiveClass="nav-active" @onclick="Close">Seasons</NavLink></li>
+            <li>
+                <NavLink href="/plan" class="nav-link" ActiveClass="nav-active" @onclick="Close">
+                    Plan
+                    @if (Planner.Route.Count > 0)
+                    {
+                        <span class="ml-2 grid min-w-6 place-items-center bg-accent px-1.5 text-sm font-extrabold" aria-label="@Planner.Route.Count stops on your route">@Planner.Route.Count</span>
+                    }
+                </NavLink>
+            </li>
+        </ul>
+    </nav>
+</header>
+
+@code {
+    private bool open;
+
+    protected override void OnInitialized() => Planner.Changed += OnChanged;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+    private void Close() => open = false;
+
+    public void Dispose() => Planner.Changed -= OnChanged;
+}

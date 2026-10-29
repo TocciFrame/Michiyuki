@@ -1,0 +1,26 @@
+@inherits LayoutComponentBase
+
+<a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:bg-accent focus:p-3 focus:font-bold">Skip to content</a>
+
+<NavMenu />
+
+<main id="main" class="min-h-[70vh]">
+    @Body
+</main>
+
+<footer class="site-footer board mt-24 on-ink">
+    <div class="mx-auto grid max-w-6xl gap-8 px-5 py-10 md:grid-cols-[1.2fr_1fr] md:px-8">
+        <div>
+            <p class="font-display text-2xl font-extrabold">Michiyuki <span class="text-board-muted" lang="ja">道行</span></p>
+            <p class="mt-2 max-w-md text-sm text-board-muted">
+                Small-group trips across ten destinations, Hokkaido to Okinawa. Michiyuki is a course project:
+                prices are illustrative, and no payment is taken.
+            </p>
+        </div>
+        <div class="text-sm text-board-muted md:text-right">
+            <p>All prices in Japanese yen, quoted for your party size.</p>
+            <p class="mt-1">Next departure planning opens 14 days ahead.</p>
+            <p class="mt-4">&copy; @DateTime.Now.Year Michiyuki</p>
+        </div>
+    </div>
+</footer>

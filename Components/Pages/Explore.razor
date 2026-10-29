@@ -1,0 +1,307 @@
+@page "/explore"
+@rendermode InteractiveServer
+@implements IDisposable
+@inject TripPlanner Planner
+
+<PageTitle>Explore the line - Michiyuki</PageTitle>
+
+<div class="mx-auto max-w-6xl px-5 pb-28 pt-8 md:px-8 lg:pb-0 lg:pt-12">
+    <header class="max-w-2xl">
+        <p class="eyebrow">FIELD NOTES / EXPERIENCE INDEX</p>
+        <h1 class="mt-3 text-[clamp(2.2rem,6vw,4rem)]">Make room for a detour.</h1>
+        <p class="mt-4 text-lg text-muted">Twenty experiences across ten destinations. Filter by region, price or mood; open any stop to see the details before adding it to your route.</p>
+    </header>
+
+    <div class="mt-10 grid gap-10 lg:grid-cols-[1fr_20rem]">
+        <div>
+            <!-- Filters -->
+            <section aria-label="Filters" class="border-2 border-ink bg-surface p-4 md:p-5">
+                <div class="grid gap-4 md:grid-cols-[1fr_12rem_12rem]">
+                    <div>
+                        <label for="q" class="field-label">Search</label>
+                        <input id="q" class="field" type="search" placeholder="ex. Hokkaido..."
+                               @bind="search" @bind:event="oninput" />
+                    </div>
+                    <div>
+                        <label for="kind" class="field-label">Type</label>
+                        <select id="kind" class="field" @bind="kindValue">
+                            <option value="">All types</option>
+                            @foreach (var k in Enum.GetValues<ExperienceKind>())
+                            {
+                                <option value="@k">@k.Label()</option>
+                            }
+                        </select>
+                    </div>
+                    <div>
+                        <label for="sort" class="field-label">Order</label>
+                        <select id="sort" class="field" @bind="sortValue">
+                            @foreach (var s in Enum.GetValues<SortMode>())
+                            {
+                                <option value="@s">@s.Label()</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <fieldset class="mt-4">
+                    <legend class="field-label">Lines</legend>
+                    <div class="flex flex-wrap gap-2">
+                        @foreach (var r in Enum.GetValues<Region>())
+                        {
+                            <button type="button" class="chip" data-region="@r"
+                                    aria-pressed="@(regions.Contains(r) ? "true" : "false")"
+                                    @onclick="() => ToggleRegion(r)">@r.Label()</button>
+                        }
+                    </div>
+                </fieldset>
+
+                <div class="mt-4 grid items-end gap-4 md:grid-cols-[1fr_auto]">
+                    <div>
+                        <label for="price" class="field-label">Up to @maxPrice.ToString("N0", CultureInfo.InvariantCulture) yen per person</label>
+                        <input id="price" type="range" min="1000" max="@ceiling" step="1000" class="h-11 w-full accent-ink"
+                               @bind="maxPrice" @bind:event="oninput" />
+                    </div>
+                    <button type="button" class="btn-outline" @onclick="Reset" disabled="@(!HasFilters)">Reset filters</button>
+                </div>
+
+                @if (station is not null)
+                {
+                    <p class="mt-4 flex flex-wrap items-center gap-3 border-t-2 border-ink pt-4 text-sm font-bold">
+                        Showing one station
+                        <span class="sign" data-region="@station.Region"><span class="sign-code">@station.Code</span><span class="sign-name">@station.Name</span></span>
+                        <button type="button" class="btn-line" @onclick="ClearStation">Show all stations</button>
+                    </p>
+                }
+            </section>
+
+            <!-- Results -->
+            <h2 class="mt-8 text-2xl" aria-live="polite">@results.Count @(results.Count == 1 ? "experience" : "experiences")</h2>
+
+            @if (results.Count == 0)
+            {
+                <div class="mt-4 border-2 border-dashed border-ink p-8">
+                    <p class="font-display text-xl font-extrabold">Nothing stops here.</p>
+                    <p class="mt-2 max-w-md text-muted">No experience matches those filters. Widen the price, drop a line, or start over.</p>
+                    <button type="button" class="btn mt-5" @onclick="Reset">Clear every filter</button>
+                </div>
+            }
+            else
+            {
+                <ul class="mt-4 border-t-2 border-ink">
+                    @foreach (var e in results)
+                    {
+                        var onRoute = Planner.InRoute(e);
+                        var isOpen = openId == e.Id;
+                        <li class="border-b-2 border-ink bg-surface" data-region="@e.Region">
+                            <div class="grid gap-4 p-4 sm:grid-cols-[11rem_1fr_auto] sm:items-start md:p-5">
+                                <div class="experience-photo-wrap">
+                                    <img class="experience-photo" src="@e.Destination.PhotoUrl" alt="@e.Destination.PhotoAlt" loading="lazy" referrerpolicy="no-referrer" />
+                                    <span class="experience-photo-code" data-region="@e.Region">@e.Destination.Code</span>
+                                </div>
+
+                                <div>
+                                    <h3 class="text-xl">@e.Name</h3>
+                                    <p class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
+                                        <span class="badge" data-region="@e.Region">@e.Kind.Label()</span>
+                                        <span>@e.Days @(e.Days == 1 ? "day" : "days")</span>
+                                        @if (e.IsFull)
+                                        {
+                                            <span class="font-bold text-danger">Fully booked</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="@(e.IsAlmostFull ? "font-bold text-danger" : "")">@e.SeatsLeft @(e.SeatsLeft == 1 ? "seat" : "seats") left</span>
+                                        }
+                                    </p>
+                                    <button type="button" class="btn-line mt-2 -ml-4" aria-expanded="@(isOpen ? "true" : "false")"
+                                            aria-controls="detail-@e.Id" @onclick="() => Toggle(e.Id)">
+                                        @(isOpen ? "Hide details" : "Details and cost")
+                                    </button>
+                                </div>
+
+                                <div class="flex flex-row items-center justify-between gap-4 sm:flex-col sm:items-end">
+                                    <p class="sm:text-right">
+                                        <span class="block font-display text-2xl font-extrabold">@e.CostPerPerson(Planner.Travelers).Yen()</span>
+                                        <span class="block text-sm text-muted">a person, party of @Planner.Travelers</span>
+                                    </p>
+                                    @if (e.IsFull)
+                                    {
+                                        <button type="button" class="btn-outline" disabled>No seats</button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button" class="@(onRoute ? "btn" : "btn-signal")" aria-pressed="@(onRoute ? "true" : "false")"
+                                                @onclick="() => ToggleRoute(e)">
+                                            @(onRoute ? "On route. Remove" : "Add to route")
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+
+                            @if (isOpen)
+                            {
+                                <div id="detail-@e.Id" class="grid gap-6 border-t-2 border-dashed border-ink bg-paper p-4 md:grid-cols-2 md:p-5">
+                                    <div>
+                                        <p class="max-w-prose leading-relaxed">@e.Description</p>
+                                        <p class="mt-3 text-sm text-muted">@e.Notes</p>
+                                        <div class="mt-4" data-region="@e.Region">
+                                            <div class="meter" role="img" aria-label="@e.Booked of @e.Capacity seats taken"><i style="width:@(e.Booked * 100 / e.Capacity)%"></i></div>
+                                            <p class="mt-1 text-sm text-muted">@e.Booked of @e.Capacity seats taken</p>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-display text-lg font-extrabold">What @Planner.Travelers @(Planner.Travelers == 1 ? "traveler pays" : "travelers pay")</h4>
+                                        <table class="mt-2 w-full text-sm">
+                                            <tbody>
+                                                @foreach (var line in e.Breakdown(Planner.Travelers))
+                                                {
+                                                    <tr class="border-b border-line">
+                                                        <th scope="row" class="py-2 pr-3 text-left font-normal">@line.Label</th>
+                                                        <td class="py-2 text-right tabular-nums">@line.Amount.Yen()</td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                            <tfoot>
+                                                <tr>
+                                                    <th scope="row" class="pt-3 text-left font-extrabold">Total</th>
+                                                    <td class="pt-3 text-right font-extrabold tabular-nums">@e.CalculateCost(Planner.Travelers).Yen()</td>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+                                </div>
+                            }
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+
+        <!-- Route panel (desktop) -->
+        <aside id="route" class="hidden lg:block" aria-label="Your route">
+            <div class="board on-ink sticky top-20 p-5">
+                <h2 class="text-2xl">Your route</h2>
+                <div class="mt-4 flex items-center justify-between gap-3">
+                    <span id="party-label" class="text-sm font-bold">Party size</span>
+                    <div class="stepper !bg-ink-2 !border-white text-white" role="group" aria-labelledby="party-label">
+                        <button type="button" aria-label="One fewer traveler" disabled="@(Planner.Travelers <= 1)" @onclick="() => Planner.Travelers--">&minus;</button>
+                        <output aria-live="polite" class="!border-white">@Planner.Travelers</output>
+                        <button type="button" aria-label="One more traveler" disabled="@(Planner.Travelers >= TripPlanner.MaxTravelers)" @onclick="() => Planner.Travelers++">+</button>
+                    </div>
+                </div>
+
+                @if (Planner.Route.Count == 0)
+                {
+                    <p class="mt-6 border-t border-ink-2 pt-4 text-board-muted">Empty so far. Add a stop and it lands here with a live total.</p>
+                }
+                else
+                {
+                    <ul class="mt-5 border-t border-ink-2">
+                        @foreach (var e in Planner.Route)
+                        {
+                            <li class="flex items-start justify-between gap-3 border-b border-ink-2 py-3">
+                                <div>
+                                    <span class="sign" data-region="@e.Region"><span class="sign-code">@e.Destination.Code</span></span>
+                                    <p class="mt-1 text-sm font-bold">@e.Name</p>
+                                    <p class="text-sm text-board-muted">@e.CalculateCost(Planner.Travelers).Yen()</p>
+                                </div>
+                                <button type="button" class="min-h-11 min-w-11 text-sm font-bold underline underline-offset-4 hover:text-accent" aria-label="Remove @e.Name" @onclick="() => Planner.Remove(e)">Remove</button>
+                            </li>
+                        }
+                    </ul>
+                    <dl class="mt-4 grid grid-cols-2 gap-y-1">
+                        <dt class="text-board-muted">Days on the line</dt><dd class="text-right font-bold">@Planner.RouteDays</dd>
+                        <dt class="text-board-muted">Total for @Planner.Travelers</dt><dd class="text-right font-display text-2xl font-extrabold">@Planner.RouteTotal.Yen()</dd>
+                    </dl>
+                    <a href="/plan" class="btn-signal mt-5 w-full">Review and book</a>
+                    <button type="button" class="mt-2 min-h-11 w-full text-sm font-bold underline underline-offset-4 hover:text-accent" @onclick="Planner.Clear">Clear route</button>
+                }
+            </div>
+        </aside>
+    </div>
+</div>
+
+<!-- Route bar (mobile) -->
+<div class="board on-ink fixed inset-x-0 bottom-0 z-30 border-t-2 border-white lg:hidden">
+    <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-3">
+        <div>
+            <p class="text-sm text-board-muted">@Planner.Route.Count @(Planner.Route.Count == 1 ? "stop" : "stops"), party of @Planner.Travelers</p>
+            <p class="font-display text-xl font-extrabold">@Planner.RouteTotal.Yen()</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <div class="stepper !border-white text-white" role="group" aria-label="Party size">
+                <button type="button" aria-label="One fewer traveler" disabled="@(Planner.Travelers <= 1)" @onclick="() => Planner.Travelers--">&minus;</button>
+                <output class="!border-white">@Planner.Travelers</output>
+                <button type="button" aria-label="One more traveler" disabled="@(Planner.Travelers >= TripPlanner.MaxTravelers)" @onclick="() => Planner.Travelers++">+</button>
+            </div>
+            <a href="/plan" class="btn-signal">Book</a>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "station")] public int? StationId { get; set; }
+
+    private string search = "";
+    private string kindValue = "";
+    private SortMode sortValue = SortMode.Route;
+    private readonly HashSet<Region> regions = new();
+    private int ceiling;
+    private int maxPrice;
+    private int? openId;
+    private bool stationCleared;
+
+    private Destination? station => stationCleared || StationId is null ? null
+        : SampleData.Destinations.FirstOrDefault(d => d.Id == StationId);
+
+    private bool HasFilters => search != "" || kindValue != "" || regions.Count > 0 || maxPrice < ceiling || station is not null || sortValue != SortMode.Route;
+
+    private List<Experience> results
+    {
+        get
+        {
+            IEnumerable<Experience> q = Planner.Catalog;
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var s = search.Trim();
+                q = q.Where(e => e.Name.Contains(s, StringComparison.OrdinalIgnoreCase)
+                    || e.Description.Contains(s, StringComparison.OrdinalIgnoreCase)
+                    || e.Destination.Name.Contains(s, StringComparison.OrdinalIgnoreCase));
+            }
+            if (regions.Count > 0) q = q.Where(e => regions.Contains(e.Region));
+            if (Enum.TryParse<ExperienceKind>(kindValue, out var kind)) q = q.Where(e => e.Kind == kind);
+            if (station is not null) q = q.Where(e => e.Destination.Id == station.Id);
+            q = q.Where(e => e.CostPerPerson(Planner.Travelers) <= maxPrice);
+
+            return (sortValue switch
+            {
+                SortMode.PriceLow => q.OrderBy(e => e.CostPerPerson(Planner.Travelers)),
+                SortMode.PriceHigh => q.OrderByDescending(e => e.CostPerPerson(Planner.Travelers)),
+                SortMode.Longest => q.OrderByDescending(e => e.Days).ThenBy(e => e.Id),
+                SortMode.SeatsLeft => q.OrderByDescending(e => e.SeatsLeft).ThenBy(e => e.Id),
+                _ => q.OrderBy(e => e.Destination.MapY).ThenBy(e => e.Id)
+            }).ToList();
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        ceiling = (int)Math.Ceiling(Planner.Catalog.Max(e => e.CostPerPerson(1)) / 1000m) * 1000;
+        maxPrice = ceiling;
+        Planner.Changed += OnChanged;
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+    private void ToggleRegion(Region r) { if (!regions.Remove(r)) regions.Add(r); }
+    private void Toggle(int id) => openId = openId == id ? null : id;
+    private void ToggleRoute(Experience e) { if (Planner.InRoute(e)) Planner.Remove(e); else Planner.Add(e); }
+    private void ClearStation() => stationCleared = true;
+
+    private void Reset()
+    {
+        search = ""; kindValue = ""; sortValue = SortMode.Route; maxPrice = ceiling;
+        regions.Clear(); stationCleared = true;
+    }
+
+    public void Dispose() => Planner.Changed -= OnChanged;
+}
