@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <!-- Rebuilds the Tailwind CSS bundle on every build. Best-effort: if npm/node
+       is missing, the committed wwwroot/css/app.css is used and the build still succeeds. -->
+  <Target Name="TailwindCss" BeforeTargets="Build">
+    <Exec Command="npm install" Condition="!Exists('node_modules')" ContinueOnError="WarnAndContinue" />
+    <Exec Command="npm run build:css" ContinueOnError="WarnAndContinue" />
+  </Target>
+
+</Project>
