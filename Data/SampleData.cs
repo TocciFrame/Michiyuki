@@ -77,7 +77,7 @@ public static class SampleData
             photoUrl: "https://img.huffingtonpost.com/asset/67b2c80c19000025002aa827.jpeg?ops=scalefit_1440",
             photoAlt: "Ancient cedar trunks and moss carpeting Yakushima's rainforest floor"),
         new(10, "Okinawa", "沖縄", Region.Okinawa, "Okinawa",
-            "Coral-blue water, Ryukyu heritage and island time at the southern edge of Japan.", 61, 98,
+            "Coral-blue water, Ryukyu heritage and island time at the southern edge of Japan.", 61, 94,
             new[] {
                 H(4, 6, "Island sea season", "Clear water and warm days make spring an inviting time for coastal walks."),
                 H(10, 11, "Gentler shoulder season", "Warm seas and a little more breathing room beyond the summer peak.") }, labelLeft: true,

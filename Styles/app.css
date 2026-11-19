@@ -310,10 +310,16 @@ h1, .hero-title { font-family: var(--font-serif); }
 .home-hero .btn-signal, .home-hero .btn-outline { min-height: 3rem; }
 .season-peek { border-top-width: 1px; }
 .linemap {
-    border: 1px solid rgba(24,60,50,.18); border-radius: 1.35rem; overflow: hidden;
+    aspect-ratio: 4 / 6;
+    min-height: 760px;
+    border: 1px solid rgba(24,60,50,.18);
+    border-radius: 1.35rem;
+    overflow: hidden;
     box-shadow: 0 18px 50px rgba(34, 56, 44, .09);
     background-color: var(--color-surface);
-    background-image: linear-gradient(rgba(24,60,50,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(24,60,50,.045) 1px, transparent 1px);
+    background-image:
+        linear-gradient(rgba(24,60,50,.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(24,60,50,.045) 1px, transparent 1px);
 }
 .seg { stroke-width: 6; }
 .station-btn { border-width: 3px; box-shadow: 0 5px 12px rgba(24,60,50,.15); }
