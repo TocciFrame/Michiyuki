@@ -6,6 +6,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Supabase" Version="1.1.1" />
+  </ItemGroup>
+
   <!-- Rebuilds the Tailwind CSS bundle on every build. Best-effort: if npm/node
        is missing, the committed wwwroot/css/app.css is used and the build still succeeds. -->
   <Target Name="TailwindCss" BeforeTargets="Build">
