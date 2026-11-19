@@ -61,6 +61,9 @@ public abstract class Experience : IBookable
         return true;
     }
 
+    /// <summary>Gives seats back (a cancelled booking).</summary>
+    public void Release(int seats) => Booked = Math.Max(0, Booked - Math.Max(0, seats));
+
     protected static int Normalize(int travelers) => Math.Max(1, travelers);
     protected static decimal Yen(decimal value) => Math.Round(value, 0);
 }
