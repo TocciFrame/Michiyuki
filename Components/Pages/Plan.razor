@@ -5,6 +5,13 @@
 
 <PageTitle>@(booking is null ? "Plan your trip" : "Your ticket") - Michiyuki</PageTitle>
 
+@if (!Planner.IsLoaded)
+{
+    <CatalogStatus />
+}
+else
+{
+
 <div class="mx-auto max-w-6xl px-5 pt-8 md:px-8 lg:pt-12">
 @if (booking is not null)
 {
@@ -52,6 +59,7 @@
 
     <div class="mt-8 flex flex-wrap gap-3">
         <button type="button" class="btn-signal" @onclick="PlanAnother">Plan another trip</button>
+        <button type="button" class="btn-outline" disabled="@(busyId == booking.Id)" @onclick="() => CancelAsync(booking!)">Cancel this booking</button>
         <a href="/seasons" class="btn-outline">Check the seasons</a>
     </div>
 }
@@ -177,7 +185,39 @@ else
         </aside>
     </div>
 }
+    <section class="mt-16 pb-20" aria-labelledby="h-bookings">
+        <h2 id="h-bookings" class="text-2xl">Recent bookings</h2>
+        
+        @if (actionError is not null)
+        {
+            <p class="field-error mt-4 border-2 border-danger bg-surface p-3" role="alert">@actionError</p>
+        }
+        @if (Planner.Bookings.Count == 0)
+        {
+            <p class="mt-4 text-muted">No bookings yet.</p>
+        }
+        else
+        {
+            <ul class="mt-4 border-t-2 border-ink">
+                @foreach (var b in Planner.Bookings)
+                {
+                    <li class="flex flex-wrap items-center justify-between gap-3 border-b border-line py-4">
+                        <div>
+                            <p class="font-bold">@b.Reference <span class="font-normal text-muted">&middot; @b.LeaderName, @b.Travelers @(b.Travelers == 1 ? "traveler" : "travelers")</span></p>
+                            <p class="text-sm text-muted">@b.Lines.Count @(b.Lines.Count == 1 ? "stop" : "stops") &middot; @b.Total.Yen() &middot; departs @b.Departure.Day()</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <input type="date" class="field" min="@minDate" value="@DateValue(b)" aria-label="New departure date for @b.Reference" @onchange="args => SetNewDate(b.Id, args.Value?.ToString())" />
+                            <button type="button" class="btn-outline" disabled="@(busyId == b.Id)" @onclick="() => RescheduleAsync(b)">Reschedule</button>
+                            <button type="button" class="btn-outline" disabled="@(busyId == b.Id)" @onclick="() => CancelAsync(b)">Cancel</button>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+    </section>
 </div>
+}
 
 @code {
     private InquiryForm form = new();
@@ -189,10 +229,11 @@ else
     private int party => Math.Clamp(form.Travelers, 1, TripPlanner.MaxTravelers);
     private string FirstName => booking is null ? "" : booking.LeaderName.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         form.Travelers = Planner.Travelers;
         Planner.Changed += OnChanged;
+        await Planner.EnsureLoadedAsync();
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
@@ -222,11 +263,21 @@ else
         if (!CheckRoute()) return;
         submitting = true;
         StateHasChanged();
-        await Task.Delay(1200); // stands in for a real booking call
 
-        booking = Planner.Confirm(form.FullName.Trim(), form.Email.Trim(), party, form.Departure!.Value, form.Pace);
-        if (booking is null) routeError = "Seats changed while we were booking. Review your route and try again.";
-        submitting = false;
+        try
+        {
+            booking = await Planner.ConfirmAsync(form.FullName.Trim(), form.Email.Trim(), party,
+                form.Departure!.Value, form.Pace, form.Notes.Trim());
+            if (booking is null) routeError = "Seats changed while we were booking. Review your route and try again.";
+        }
+        catch (Exception ex)
+        {
+            routeError = $"We could not save your booking: {ex.Message}";
+        }
+        finally
+        {
+            submitting = false;
+        }
     }
 
     private void PlanAnother()
@@ -234,6 +285,55 @@ else
         booking = null;
         form = new InquiryForm { Travelers = Planner.Travelers };
         routeError = null;
+    }
+
+    // ---- recent bookings: update and delete ----
+    private string? actionError;
+    private long busyId;
+    private readonly Dictionary<long, string> newDates = new();
+
+    private static string DateValue(Booking b) => b.Departure.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    private void SetNewDate(long id, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value)) newDates[id] = value;
+    }
+
+    private async Task RescheduleAsync(Booking b)
+    {
+        actionError = null;
+        if (!newDates.TryGetValue(b.Id, out var text)
+            || !DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+        {
+            actionError = "Pick a new date first.";
+            return;
+        }
+        if (date.Date < DateTime.Today.AddDays(14))
+        {
+            actionError = "Departures need at least 14 days of lead time.";
+            return;
+        }
+        busyId = b.Id;
+        try
+        {
+            await Planner.RescheduleAsync(b, date);
+            newDates.Remove(b.Id);
+        }
+        catch (Exception ex) { actionError = $"Could not reschedule: {ex.Message}"; }
+        finally { busyId = 0; }
+    }
+
+    private async Task CancelAsync(Booking b)
+    {
+        actionError = null;
+        busyId = b.Id;
+        try
+        {
+            await Planner.CancelAsync(b);
+            if (booking?.Id == b.Id) booking = null;
+        }
+        catch (Exception ex) { actionError = $"Could not cancel: {ex.Message}"; }
+        finally { busyId = 0; }
     }
 
     public void Dispose() => Planner.Changed -= OnChanged;

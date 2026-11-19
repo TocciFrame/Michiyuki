@@ -4,6 +4,13 @@
 
 <PageTitle>Michiyuki: small-group travel across Japan, planned as a rail line</PageTitle>
 
+@if (!Planner.IsLoaded)
+{
+    <CatalogStatus />
+}
+else
+{
+
 <section class="home-hero mx-auto grid max-w-6xl gap-10 px-5 pt-8 md:px-8 lg:grid-cols-[5fr_6fr] lg:gap-14 lg:pt-14">
     <div class="lg:pt-4">
         <p class="eyebrow">A FIELD GUIDE TO JAPAN <span aria-hidden="true">✳</span> 道行</p>
@@ -189,9 +196,10 @@
         </div>
     </dl>
 </section>
+}
 
 @code {
-    private readonly IReadOnlyList<Destination> stations = SampleData.Destinations;
+    private IReadOnlyList<Destination> stations => Planner.Destinations;
     private Destination selected = default!;
     private List<Destination> inSeason = new();
     private List<Experience> filling = new();
@@ -204,8 +212,11 @@
         .Select(e => e.CostPerPerson(Planner.Travelers))
         .DefaultIfEmpty(0).Min();
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        await Planner.EnsureLoadedAsync();
+        if (!Planner.IsLoaded) return;
+
         var month = DateTime.Now.Month;
         inSeason = stations.Where(d => d.IsInSeason(month)).ToList();
         selected = inSeason.FirstOrDefault() ?? stations[0];

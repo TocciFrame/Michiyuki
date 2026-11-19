@@ -5,6 +5,13 @@
 
 <PageTitle>Explore the line - Michiyuki</PageTitle>
 
+@if (!Planner.IsLoaded)
+{
+    <CatalogStatus />
+}
+else
+{
+
 <div class="mx-auto max-w-6xl px-5 pb-28 pt-8 md:px-8 lg:pb-0 lg:pt-12">
     <header class="max-w-2xl">
         <p class="eyebrow">FIELD NOTES / EXPERIENCE INDEX</p>
@@ -238,6 +245,7 @@
         </div>
     </div>
 </div>
+}
 
 @code {
     [SupplyParameterFromQuery(Name = "station")] public int? StationId { get; set; }
@@ -252,7 +260,7 @@
     private bool stationCleared;
 
     private Destination? station => stationCleared || StationId is null ? null
-        : SampleData.Destinations.FirstOrDefault(d => d.Id == StationId);
+        : Planner.Destinations.FirstOrDefault(d => d.Id == StationId);
 
     private bool HasFilters => search != "" || kindValue != "" || regions.Count > 0 || maxPrice < ceiling || station is not null || sortValue != SortMode.Route;
 
@@ -284,11 +292,14 @@
         }
     }
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        ceiling = (int)Math.Ceiling(Planner.Catalog.Max(e => e.CostPerPerson(1)) / 1000m) * 1000;
-        maxPrice = ceiling;
         Planner.Changed += OnChanged;
+        await Planner.EnsureLoadedAsync();
+        if (!Planner.IsLoaded) return;
+
+        ceiling = (int)Math.Ceiling(Planner.Catalog.Select(e => e.CostPerPerson(1)).DefaultIfEmpty(1000m).Max() / 1000m) * 1000;
+        maxPrice = ceiling;
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);

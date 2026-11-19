@@ -1,7 +1,15 @@
 @page "/seasons"
 @rendermode InteractiveServer
+@inject TripPlanner Planner
 
 <PageTitle>Seasons timetable - Michiyuki</PageTitle>
+
+@if (!Planner.IsLoaded)
+{
+    <CatalogStatus />
+}
+else
+{
 
 <div class="mx-auto max-w-6xl px-5 pt-8 md:px-8 lg:pt-12">
     <header class="max-w-2xl">
@@ -93,12 +101,15 @@
         }
     </section>
 </div>
+}
 
 @code {
+    protected override async Task OnInitializedAsync() => await Planner.EnsureLoadedAsync();
+
     private int selectedMonth = DateTime.Now.Month;
     private bool onlyInSeason;
 
     private string MonthFull => CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(selectedMonth);
-    private List<Destination> inMonth => SampleData.Destinations.Where(d => d.IsInSeason(selectedMonth)).ToList();
-    private IEnumerable<Destination> rows => onlyInSeason ? inMonth : SampleData.Destinations;
+    private List<Destination> inMonth => Planner.Destinations.Where(d => d.IsInSeason(selectedMonth)).ToList();
+    private IEnumerable<Destination> rows => onlyInSeason ? inMonth : Planner.Destinations;
 }
